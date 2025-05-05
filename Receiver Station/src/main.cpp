@@ -7,6 +7,10 @@
 #include <Arduino.h>
 #include <PubSubClient.h>
 #include <EEPROM.h>
+#include <ArduinoJson.h>
+
+// Receiver Zone Id
+const char *zoneId = "1";
 
 #define CS 15      // Chip select
 #define RESET 14   // Reset
@@ -125,28 +129,33 @@ void getWiFiCredentials(void)
 
     EEPROM.get(32, pass);
     // ssid[sizeof(pass) - 1] = '\0'; // Force null-termination
-
 }
 
 // Save WiFi Credentials to EEPROM
 void saveWiFiCredentials(const char *ssidToSave, const char *passToSave)
-{   
+{
     // Clear both sections first
-    for (int i = 0; i < MAX_SSID_LEN; i++) EEPROM.write(SSID_ADDR + i, 0);
-    for (int i = 0; i < MAX_PASS_LEN; i++) EEPROM.write(PASS_ADDR + i, 0);
-    
+    for (int i = 0; i < MAX_SSID_LEN; i++)
+        EEPROM.write(SSID_ADDR + i, 0);
+    for (int i = 0; i < MAX_PASS_LEN; i++)
+        EEPROM.write(PASS_ADDR + i, 0);
+
     // Safe write SSID
     int ssidLen = strlen(ssidToSave);
-    if (ssidLen >= MAX_SSID_LEN) ssidLen = MAX_SSID_LEN - 1;
-    for (int i = 0; i < ssidLen; i++) {
+    if (ssidLen >= MAX_SSID_LEN)
+        ssidLen = MAX_SSID_LEN - 1;
+    for (int i = 0; i < ssidLen; i++)
+    {
         EEPROM.write(SSID_ADDR + i, ssidToSave[i]);
     }
     EEPROM.write(SSID_ADDR + ssidLen, '\0');
 
     // Safe write Password
     int passLen = strlen(passToSave);
-    if (passLen >= MAX_PASS_LEN) passLen = MAX_PASS_LEN - 1;
-    for (int i = 0; i < passLen; i++) {
+    if (passLen >= MAX_PASS_LEN)
+        passLen = MAX_PASS_LEN - 1;
+    for (int i = 0; i < passLen; i++)
+    {
         EEPROM.write(PASS_ADDR + i, passToSave[i]);
     }
     EEPROM.write(PASS_ADDR + passLen, '\0');
@@ -155,40 +164,44 @@ void saveWiFiCredentials(const char *ssidToSave, const char *passToSave)
 }
 
 // Connect to WiFi
-void connectToWiFi() {
+void connectToWiFi()
+{
     int retries = 0;
-    
+
     WiFi.begin(ssid, pass);
-    
-    while (WiFi.status() != WL_CONNECTED) {
-        if (retries++ >= 30) {  // 15 seconds total (30 x 500ms)
+
+    while (WiFi.status() != WL_CONNECTED)
+    {
+        if (retries++ >= 30)
+        { // 15 seconds total (30 x 500ms)
             Serial.println("Failed to connect - starting AP");
-            
+
             Serial.print("SSID: ");
             Serial.println(ssid);
 
             Serial.print("Pass: ");
             Serial.println(pass);
-            
-            startAP();  // This will never return
+
+            startAP(); // This will never return
             return;
         }
         delay(500);
         Serial.print(".");
     }
-    
+
     Serial.println("\nConnected to WiFi!");
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
 }
 
 // Start simple Access Point
-void startAP() {
+void startAP()
+{
     Serial.println("\nStarting Access Point...");
     WiFi.disconnect();
     WiFi.mode(WIFI_AP);
     WiFi.softAP("Station0", "cms123");
-    
+
     IPAddress IP = WiFi.softAPIP();
     Serial.print("AP IP address: ");
     Serial.println(IP);
@@ -196,8 +209,9 @@ void startAP() {
     server.on("/", handleRoot);
     server.on("/save", handleSave);
     server.begin();
-    
-    while (true) {
+
+    while (true)
+    {
         server.handleClient();
         delay(10);
     }
@@ -216,27 +230,29 @@ void handleRoot()
 }
 
 // Handle logic to save to EEPROM
-void handleSave() {
+void handleSave()
+{
     String newSSID = server.arg("ssid");
     String newPASS = server.arg("pass");
-    
+
     // Validate input lengths
-    if (newSSID.length() >= MAX_SSID_LEN || newPASS.length() >= MAX_PASS_LEN) {
+    if (newSSID.length() >= MAX_SSID_LEN || newPASS.length() >= MAX_PASS_LEN)
+    {
         server.send(400, "text/plain", "Error: Credentials too long");
         return;
     }
 
     newSSID.toCharArray(ssid, sizeof(ssid));
     newPASS.toCharArray(pass, sizeof(pass));
-  
-    saveWiFiCredentials(ssid,pass);
-  
+
+    saveWiFiCredentials(ssid, pass);
+
     String response = "<html><body><h1>Saved. Rebooting...</h1></body></html>";
     server.send(200, "text/html", response);
     delay(3000);
-    ESP.restart();  // Reboot to try connecting
-  }
-  
+    ESP.restart(); // Reboot to try connecting
+}
+
 // Connect to AWS
 void connectAWS()
 {
@@ -270,22 +286,64 @@ void connectAWS()
     }
 }
 
+void publishAWS(const char *id, const char *payload)
+{
+    // Prepare the topic
+    char topic[64];
+    snprintf(topic, sizeof(topic), "zone/%s/cattle%s/data", zoneId, id);
+    if (mqttClient.publish(topic, payload))
+    {
+        Serial.print("Message published to topic: ");
+        Serial.println(topic);
+    }
+    else
+    {
+        Serial.println("Failed to publish message.");
+    };
+}
+
 void loop()
 {
-
     // Try to parse packet
-
     int packetSize = LoRa.parsePacket();
+    yield();
     if (packetSize)
     {
         // Received a packet
         Serial.print("Received packet: ");
 
+        char msg[64];
         // read Packet
+        int i = 0;
         while (LoRa.available())
         {
-            Serial.print((char)LoRa.read());
+            msg[i++] = (char)LoRa.read();
+            if (i >= sizeof(msg) - 1)
+            {
+                break; // Prevent buffer overflow
+            }
         }
+
+        msg[i] = '\0';
+
+        DynamicJsonDocument doc(64);
+
+        // Deserialize the JSON message
+        DeserializationError error = deserializeJson(doc, msg);
+
+        if (error)
+        {
+            Serial.print("Failed to deserialize JSON: ");
+            Serial.println(error.f_str());
+            return;
+        }
+
+        const char *id = doc["i"];
+        publishAWS(id, msg);
+
+        // Publish to AWS IoT
+        Serial.print("Received From : ");
+        Serial.print(id);
 
         // Printing RSSI of packet
         Serial.print("' with RSSI '");

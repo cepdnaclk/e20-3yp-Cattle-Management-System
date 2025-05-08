@@ -8,9 +8,20 @@
 #include <PubSubClient.h>
 #include <EEPROM.h>
 #include <ArduinoJson.h>
+#include <Ticker.h>
 
 // Receiver Zone Id
 const char *zoneId = "1";
+
+// Broadcast Time
+struct TimePacket{
+    uint32_t unixTime;
+    uint16_t millis;
+};
+
+TimePacket packet;
+#define TIMEINTERVAL 10
+bool broadcast = false;
 
 #define CS 15      // Chip select
 #define RESET 14   // Reset
@@ -27,7 +38,7 @@ char ssid[32] = "ssid";
 char pass[32] = "pass";
 
 // AWS End-point
-const char *awsEndpoint = "";
+const char *awsEndpoint = "aoowqlrrhcw8y-ats.iot.eu-north-1.amazonaws.com";
 
 // Paths in LittleFS
 const char *cert = "/certificate.pem.crt";
@@ -42,6 +53,7 @@ BearSSL::PrivateKey *clientKey;
 WiFiClientSecure secureClient;
 PubSubClient mqttClient(secureClient);
 ESP8266WebServer server(80);
+Ticker hourlyTicker;
 
 // Function Declaration
 void connectAWS();
@@ -52,6 +64,7 @@ void saveWiFiCredentials(const char *, const char *);
 void startAP(void);
 void handleSave(void);
 void handleRoot(void);
+void broadcastTime(void);
 
 // Setup
 void setup()
@@ -105,6 +118,33 @@ void setup()
     }
 
     Serial.println("LoRa Initialized Successfully");
+
+    // Attach Ticker to Broadcast Time hourly
+    hourlyTicker.attach(TIMEINTERVAL, broadcastTime);
+    Serial.println("Attached Ticker");
+}
+
+// Broadcast the time
+void broadcastTime()
+{
+    time_t lastSecond = time(nullptr);
+    unsigned long int lastMillis = 0;
+
+    // Wait for a second to elapse to calculate millis
+    time_t now;
+    while (lastSecond == time(nullptr))
+    {
+        lastMillis = millis();
+        now = time(nullptr);
+        delay(1);
+    }
+
+    long milliseconds = (millis() - lastMillis) % 1000;
+
+    // Format: "YYYY-MM-DD HH:MM:SS.mmm"
+    packet.unixTime = now;
+    packet.millis = milliseconds;
+    broadcast = true;
 }
 
 // Utility to load a file into a String
@@ -304,6 +344,21 @@ void publishAWS(const char *id, const char *payload)
 
 void loop()
 {
+    if (broadcast)
+    {
+        LoRa.beginPacket();
+        LoRa.write((uint8_t *)&packet,sizeof(packet));
+        if (LoRa.endPacket())
+        {
+            Serial.printf("Broadcast: %d.%d\n",packet.unixTime,packet.millis);
+        }
+        else
+        {
+            Serial.println("LoRa: Broadcast failed");
+        }
+        broadcast = false;
+    }
+
     // Try to parse packet
     int packetSize = LoRa.parsePacket();
     yield();
@@ -318,7 +373,7 @@ void loop()
         while (LoRa.available())
         {
             msg[i++] = (char)LoRa.read();
-            if (i >= sizeof(msg) - 1)
+            if ((size_t)i >= sizeof(msg) - 1)
             {
                 break; // Prevent buffer overflow
             }

@@ -13,8 +13,13 @@
 // Receiver Zone Id
 const char *zoneId = "1";
 
+// Allocated Time
+int totalCattle = 100;
+uint16_t allocatedTime = 36;
+
 // Broadcast Time
-struct TimePacket{
+struct TimePacket
+{
     uint32_t unixTime;
     uint16_t millis;
 };
@@ -105,7 +110,7 @@ void setup()
     }
 
     // Connecting to AWS
-    connectAWS();
+    // connectAWS();
 
     Serial.println("Initializing LoRa");
     LoRa.setPins(15, 14, 4);
@@ -347,10 +352,12 @@ void loop()
     if (broadcast)
     {
         LoRa.beginPacket();
-        LoRa.write((uint8_t *)&packet,sizeof(packet));
+        LoRa.write((uint8_t *)&packet, sizeof(packet));
+        allocatedTime = 0 << 12 | allocatedTime;
+        LoRa.write((uint8_t *)&allocatedTime, sizeof(allocatedTime));
         if (LoRa.endPacket())
         {
-            Serial.printf("Broadcast: %d.%d\n",packet.unixTime,packet.millis);
+            Serial.printf("Broadcast: %d.%d, Allocated Time: %d\n", packet.unixTime, packet.millis, (int)allocatedTime);
         }
         else
         {

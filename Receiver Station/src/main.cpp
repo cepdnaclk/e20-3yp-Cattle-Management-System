@@ -10,6 +10,23 @@
 #include <ArduinoJson.h>
 #include <Ticker.h>
 
+// Initialize a state machine
+enum STATES
+{
+    INIT_STATE,
+    BROADCAST_STATE,
+    REQ_STATE,
+    RX_STATE
+};
+
+STATES current_state = INIT_STATE;
+
+// Currently Request device Id
+uint16_t reqDeviceId = 0;
+uint16_t prevDeviceId = 0;
+bool dataReceived = false;
+#define REQ_RETRIES 3
+
 // Receiver Zone Id
 const char *zoneId = "1";
 
@@ -25,8 +42,12 @@ struct TimePacket
 };
 
 TimePacket packet;
-#define TIMEINTERVAL 10
+#define TIMEINTERVAL 3600
 bool broadcast = false;
+uint8_t sync_retries = 0;
+bool allowRequest = false;
+const size_t sync_status_size = (totalCattle + 7) / 8;
+uint8_t *sync_status = (uint8_t *)calloc(sync_status_size, sizeof(uint8_t));
 
 #define CS 15      // Chip select
 #define RESET 14   // Reset
@@ -59,6 +80,7 @@ WiFiClientSecure secureClient;
 PubSubClient mqttClient(secureClient);
 ESP8266WebServer server(80);
 Ticker hourlyTicker;
+Ticker reqTicker;
 
 // Function Declaration
 void connectAWS();
@@ -70,6 +92,7 @@ void startAP(void);
 void handleSave(void);
 void handleRoot(void);
 void broadcastTime(void);
+void reqNext(void);
 
 // Setup
 void setup()
@@ -126,7 +149,11 @@ void setup()
 
     // Attach Ticker to Broadcast Time hourly
     hourlyTicker.attach(TIMEINTERVAL, broadcastTime);
-    Serial.println("Attached Ticker");
+    Serial.println("Attached Hourly Ticker");
+
+    // Attach Ticker to update retry and request logic
+    Serial.println("Attached RequestTime Ticker");
+    reqTicker.attach((allocatedTime / REQ_RETRIES), reqNext);
 }
 
 // Broadcast the time
@@ -150,6 +177,22 @@ void broadcastTime()
     packet.unixTime = now;
     packet.millis = milliseconds;
     broadcast = true;
+    sync_retries = 0;
+}
+
+void reqNext()
+{
+    static int retries;
+    Serial.printf("Retry: %d\n", retries);
+    if (retries == 0)
+    {
+        reqDeviceId++;
+        dataReceived = false;
+        Serial.printf("\nUpdating device Id: %d\n", (int)reqDeviceId);
+    }
+
+    retries = (retries + 1) % REQ_RETRIES; // wrap around REQ_RETRIES
+    allowRequest = true;
 }
 
 // Utility to load a file into a String
@@ -349,66 +392,171 @@ void publishAWS(const char *id, const char *payload)
 
 void loop()
 {
-    if (broadcast)
+    switch (current_state)
     {
-        LoRa.beginPacket();
-        LoRa.write((uint8_t *)&packet, sizeof(packet));
-        allocatedTime = 0 << 12 | allocatedTime;
-        LoRa.write((uint8_t *)&allocatedTime, sizeof(allocatedTime));
-        if (LoRa.endPacket())
+    case INIT_STATE:
+        broadcastTime();
+        current_state = BROADCAST_STATE;
+        break;
+
+    case BROADCAST_STATE:
+    {
+        uint8_t mode = 0xA0;
+        if (broadcast && sync_retries < 5)
         {
-            Serial.printf("Broadcast: %d.%d, Allocated Time: %d\n", packet.unixTime, packet.millis, (int)allocatedTime);
+            Serial.printf("Retry #%d\n", sync_retries);
+            LoRa.beginPacket();
+            LoRa.write((uint8_t *)&mode, 1); // Broadcast header
+            LoRa.write((uint8_t *)&packet, sizeof(packet));
+            LoRa.write((uint8_t *)&allocatedTime, sizeof(allocatedTime));
+            LoRa.write(&sync_retries, 1);
+            LoRa.write(sync_status, sync_status_size); // Broadcasting sync status mask
+            if (LoRa.endPacket())
+            {
+                // Serial.printf("Broadcast: %d.%d, Allocated Time: %d\n", packet.unixTime, packet.millis, (int)allocatedTime);
+                Serial.print("Status mask: ");
+
+                for (int i = 0; i < sync_status_size; i++)
+                {
+                    Serial.printf("%02X ", sync_status[i]);
+                    Serial.flush();
+                }
+
+                Serial.println("");
+            }
+
+            uint8_t buffer[256];
+            // Listen to Acks
+            unsigned long start = millis();
+            int recvdAcks = 0;
+            while (millis() - start < 1000)
+            {
+                int packetSize = LoRa.parsePacket();
+                yield();
+                if (packetSize > 0)
+                {
+                    while (LoRa.available() >= 2 && recvdAcks < 256)
+                    {
+                        uint8_t highByte = LoRa.read();
+                        uint8_t lowByte = LoRa.read();
+                        if (lowByte == 0xAA)
+                        {
+                            buffer[recvdAcks++] = highByte;
+                        }
+                        Serial.printf("RX: Ack : 0x%02X\n", buffer[recvdAcks - 1]);
+                    }
+
+                    for (size_t i = 0; i < recvdAcks; i++)
+                    {
+                        uint8_t byteMask = buffer[i] / 8;
+                        uint8_t bitMask = buffer[i] % 8;
+
+                        sync_status[byteMask] |= (1 << bitMask);
+                    }
+                }
+            }
+
+            sync_retries++;
+            break;
         }
-        else
-        {
-            Serial.println("LoRa: Broadcast failed");
-        }
-        broadcast = false;
+
+        // Update state to RX_STATE
+        current_state = REQ_STATE;
+        reqNext();
+        break;
     }
 
-    // Try to parse packet
-    int packetSize = LoRa.parsePacket();
-    yield();
-    if (packetSize)
+    case REQ_STATE:
     {
-        // Received a packet
-        Serial.print("Received packet: ");
-
-        char msg[64];
-        // read Packet
-        int i = 0;
-        while (LoRa.available())
+        uint8_t mode = 0xB0;
+        if (allowRequest && !dataReceived)
         {
-            msg[i++] = (char)LoRa.read();
-            if ((size_t)i >= sizeof(msg) - 1)
+            LoRa.beginPacket();
+            LoRa.write((uint8_t *)&mode, 1);
+            LoRa.write((uint8_t *)&reqDeviceId, 2);
+            if (LoRa.endPacket())
             {
-                break; // Prevent buffer overflow
+                Serial.printf("Requesting from device id: %d mode: %X\n", (int)reqDeviceId, (int)mode);
+            }
+            else
+            {
+                Serial.print("Request failed");
+            }
+
+            // Update State to RX_STATE
+            allowRequest = false;
+            current_state = RX_STATE;
+        }
+    }
+    break;
+
+    case RX_STATE:
+
+        // Try to parse packet
+        int packetSize = LoRa.parsePacket();
+        yield();
+        if (packetSize)
+        {
+            // Received a packet
+            Serial.print("Received packet: ");
+
+            char msg[64];
+            // read Packet
+            int i = 0;
+            while (LoRa.available())
+            {
+                msg[i++] = (char)LoRa.read();
+                if ((size_t)i >= sizeof(msg) - 1)
+                {
+                    break; // Prevent buffer overflow
+                }
+            }
+
+            msg[i] = '\0';
+
+            DynamicJsonDocument doc(64);
+
+            // Deserialize the JSON message
+            DeserializationError error = deserializeJson(doc, msg);
+
+            if (error)
+            {
+                Serial.print("Failed to deserialize JSON: ");
+                Serial.println(error.f_str());
+                return;
+            }
+
+            const char *id = doc["i"];
+
+            Serial.print("Received From : ");
+            Serial.print(id);
+
+            // Printing RSSI of packet
+            Serial.print("' with RSSI '");
+            Serial.println(LoRa.packetRssi());
+
+            if ((int)id == reqDeviceId)
+            {
+                // Publish to AWS IoT
+                publishAWS(id, msg);
+                dataReceived = true;
+
+                // Update STATE
+                Serial.println("Updating state to REQ_STATE....");
+                current_state = REQ_STATE;
+                break;
             }
         }
 
-        msg[i] = '\0';
-
-        DynamicJsonDocument doc(64);
-
-        // Deserialize the JSON message
-        DeserializationError error = deserializeJson(doc, msg);
-
-        if (error)
+        if (!allowRequest)
         {
-            Serial.print("Failed to deserialize JSON: ");
-            Serial.println(error.f_str());
-            return;
+            // Serial.print(".");
+            break;
         }
 
-        const char *id = doc["i"];
-        publishAWS(id, msg);
-
-        // Publish to AWS IoT
-        Serial.print("Received From : ");
-        Serial.print(id);
-
-        // Printing RSSI of packet
-        Serial.print("' with RSSI '");
-        Serial.println(LoRa.packetRssi());
+        Serial.printf("Retrying.... device Id: %d\n", (int)reqDeviceId);
+        // Update the Current state
+        current_state = REQ_STATE;
+        break;
     }
 }

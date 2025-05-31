@@ -30,19 +30,6 @@ class MqttHandler {
   private constructor() {
     //this.client = mqtt.connect(MQTT_BROKER);
 
-    // try {
-    //     this.client = awsIot.device({
-    //         keyPath: path.join(__dirname, 'certs/private.pem.key'),  // Should be private key
-    //         certPath: path.join(__dirname, 'certs/certificate.pem.crt'),
-    //         caPath: path.join(__dirname, 'certs/AmazonRootCA1.pem'),
-    //         clientId: 'back_end', // Better client ID
-    //         host: 'aoowqlrrhcw8y-ats.iot.eu-north-1.amazonaws.com' // No http://
-    //     });
-    // } catch (error) {
-    //     console.error("Error connecting to MQTT broker:", error);
-    //     throw error; // Rethrow the error to be handled by the caller
-    // }
-
     const certsDir = path.join(__dirname, '..', '..', 'certs');
 
     const options = {
@@ -127,25 +114,25 @@ class MqttHandler {
           );
 
           // Store latest data in MongoDB
-          const existingData = await latestSensorData.findOne({ deviceId });
+          // const existingData = await latestSensorData.findOne({ deviceId });
 
-          if (existingData) {
-            existingData.heartRate = heartRate;
-            existingData.temperature = temperature;
-            existingData.gpsLocation = gpsLocation;
-            //existingData.timestamp = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
-            await existingData.save();
-            console.log(
-              `Updated latest sensor data in DB for device ${deviceId}:`
-            );
-          } else {
-            await this.storeLatestSensorData(
-              deviceId,
-              heartRate,
-              temperature,
-              gpsLocation
-            );
-          }
+          // if (existingData) {
+          //   existingData.heartRate = heartRate;
+          //   existingData.temperature = temperature;
+          //   existingData.gpsLocation = gpsLocation;
+          //   //existingData.timestamp = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
+          //   await existingData.save();
+          //   console.log(
+          //     `Updated latest sensor data in DB for device ${deviceId}:`
+          //   );
+          // } else {
+          //   await this.storeLatestSensorData(
+          //     deviceId,
+          //     heartRate,
+          //     temperature,
+          //     gpsLocation
+          //   );
+          // }
 
           // Check alerts and log them
           const { status, action } = await CattleSensorData.checkSensors(
@@ -195,26 +182,26 @@ class MqttHandler {
   }
 
   // Function to store latest sensor data in MongoDB
-  private async storeLatestSensorData(
-    deviceId: number,
-    heartRate: number,
-    temperature: number,
-    gpsLocation?: { latitude: number; longitude: number }
-  ) {
-    try {
-      const newSensorData = new latestSensorData({
-        deviceId,
-        heartRate,
-        temperature,
-        gpsLocation,
-      });
+  // private async storeLatestSensorData(
+  //   deviceId: number,
+  //   heartRate: number,
+  //   temperature: number,
+  //   gpsLocation?: { latitude: number; longitude: number }
+  // ) {
+  //   try {
+  //     const newSensorData = new latestSensorData({
+  //       deviceId,
+  //       heartRate,
+  //       temperature,
+  //       gpsLocation,
+  //     });
 
-      await newSensorData.save();
-      console.log(`Latest Sensor data stored in DB for device ${deviceId}:`);
-    } catch (error) {
-      console.error(' Error storing sensor data:', error);
-    }
-  }
+  //     await newSensorData.save();
+  //     console.log(`Latest Sensor data stored in DB for device ${deviceId}:`);
+  //   } catch (error) {
+  //     console.error(' Error storing sensor data:', error);
+  //   }
+  // }
 
   public static getInstance(): MqttHandler {
     if (!MqttHandler.instance) {

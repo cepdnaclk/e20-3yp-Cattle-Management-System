@@ -8,6 +8,13 @@ import geoFenceModel from '../model/geoFenceModel';
 //   radius: number;
 // }
 
+export enum ZoneStatus {
+  Safe = 'SAFE',
+  Warning = 'WARNING',
+  Danger = 'DANGER',
+  Unknown = 'UNKNOWN',
+}
+
 export class CattleSensorData {
   private static boundaries = {
     heartRate: { min: 60, max: 80 },
@@ -53,19 +60,19 @@ export class CattleSensorData {
       status = 'unsafe';
     }
 
-    if (cattleData.gpsLocation) {
-      const { latitude, longitude } = cattleData.gpsLocation;
-      if (
-        // latitude < this.boundaries.gpsGeofence.minLatitude ||
-        // latitude > this.boundaries.gpsGeofence.maxLatitude ||
-        // longitude < this.boundaries.gpsGeofence.minLongitude ||
-        // longitude > this.boundaries.gpsGeofence.maxLongitude
-        await this.isCattleInSafeZone(latitude, longitude)
-      ) {
-        action.push(4);
-        status = 'unsafe';
-      }
-    }
+    // if (cattleData.gpsLocation) {
+    //   const { latitude, longitude } = cattleData;
+    //   if (
+    //     // latitude < this.boundaries.gpsGeofence.minLatitude ||
+    //     // latitude > this.boundaries.gpsGeofence.maxLatitude ||
+    //     // longitude < this.boundaries.gpsGeofence.minLongitude ||
+    //     // longitude > this.boundaries.gpsGeofence.maxLongitude
+    //     await this.isCattleInSafeZone()
+    //   ) {
+    //     action.push(4);
+    //     status = 'unsafe';
+    //   }
+    // }
 
     if (action.length === 0) {
       return {
@@ -80,6 +87,7 @@ export class CattleSensorData {
     };
   }
 
+  // Find the distance between 2 points in sphere (Earth)
   private static findDistance = (
     lat1: number,
     lat2: number,
@@ -105,18 +113,37 @@ export class CattleSensorData {
   };
 
   public static isCattleInSafeZone = async (
-    latitude: number,
-    longitude: number
-  ): Promise<boolean> => {
+    cattleId: number
+  ): Promise<ZoneStatus> => {
+    const threshold = 4;
     const geoFences = await geoFenceModel.find();
-    return geoFences.some((geoFence) => {
+    if (geoFences.length === 0) {
+      return ZoneStatus.Safe;
+    }
+
+    const latestData = await latestSensorData.findOne({ deviceId: cattleId });
+    if (!latestData || !latestData.gpsLocation) {
+      return ZoneStatus.Unknown;
+    }
+
+    for (const geoFence of geoFences) {
       const distance = this.findDistance(
-        latitude,
+        latestData.gpsLocation.latitude,
         geoFence.latitude,
-        longitude,
+        latestData.gpsLocation.longitude,
         geoFence.longitude
       );
-      return distance <= geoFence.radius;
-    });
+      const geoFenceRadius = geoFence.radius;
+      // console.log(distance, geoFenceRadius);
+
+      if (distance <= geoFenceRadius) {
+        if (distance > geoFenceRadius - threshold) {
+          return ZoneStatus.Warning;
+        }
+        return ZoneStatus.Safe;
+      }
+    }
+
+    return ZoneStatus.Danger;
   };
 }

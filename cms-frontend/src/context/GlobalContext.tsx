@@ -17,6 +17,10 @@ interface GlobalContextType {
   setShowCattleCard: Dispatch<SetStateAction<boolean>>;
   auth: AuthType;
   setAuth: Dispatch<SetStateAction<AuthType>>;
+  cattleList_selectedOption: string;
+  setCattlelist_selectedOption: Dispatch<SetStateAction<string>>;
+  selectedMenu: string;
+  setSelectedMenu: Dispatch<SetStateAction<string>>;
 }
 
 const GlobalContext = React.createContext<GlobalContextType>({
@@ -33,6 +37,10 @@ const GlobalContext = React.createContext<GlobalContextType>({
     address: "",
   },
   setAuth: () => {},
+  cattleList_selectedOption: '',
+  setCattlelist_selectedOption: () => {},
+  selectedMenu: '',
+  setSelectedMenu: () => {},
 });
 
 export default GlobalContext;

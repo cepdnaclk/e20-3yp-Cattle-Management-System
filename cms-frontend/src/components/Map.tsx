@@ -2,14 +2,6 @@ import { useEffect } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-// interface CattleLocation {
-//   gpsLocation: {
-//     latitude: number;
-//     longitude: number;
-//   };
-//   timestamp: string;
-// }
-
 const Map = () => {
   useEffect(() => {
     // Initialize the map

@@ -1,8 +1,8 @@
 import { useContext } from 'react';
 import { FieldValue, useForm, FieldValues } from 'react-hook-form';
-import GlobalContext from '../context/GlobalContext';
 import { IoMdCloseCircleOutline } from 'react-icons/io';
-import { addCattle } from '../services/CattleListService';
+import GlobalContext from '../../context/GlobalContext';
+import { addCattle } from '../../services/CattleListService';
 
 const AddCattleForm = () => {
   const { setShowCattleAddForm } = useContext(GlobalContext);

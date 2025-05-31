@@ -2,6 +2,8 @@ import { IconType } from 'react-icons';
 import logo from '../assets/images/logo.png';
 import { menuLinks } from '../constants';
 import { accountLinks } from '../constants';
+import { useContext, useState } from 'react';
+import GlobalContext from '../context/GlobalContext';
 
 interface NavLink {
   label: string;
@@ -10,53 +12,78 @@ interface NavLink {
 }
 
 const Nav = () => {
+  const { selectedMenu, setSelectedMenu } = useContext(GlobalContext);
+  const isActive = (href: string) => {
+    return (
+      location.pathname === href ||
+      (href !== '/' && location.pathname.startsWith(href))
+    );
+  };
+  console.log(selectedMenu);
+
   return (
-    // <div className="flex flex-col w-1/6 shadow-2xl z-10 p-5">
-    <div className="flex flex-col w-1/6 shadow-2xl z-10">
+    <div className="flex flex-col w-1/7 shadow-md z-10">
       <div>
         {/* logo */}
-        <div className="flex justify-center items-center">
-          <img src={logo} className="w-40 h-40" />
+        <div className="flex justify-center items-center py-6 border-b border-gray-100">
+          <img src={logo} className="w-32 h-auto" />
         </div>
 
         {/* Menu */}
-        <nav className="mt-6">
-          <h1 className="text-xl font-medium font-sans font-stretch-110% ml-5">
+        <nav className="py-6">
+          <h1 className="text-md text-gray-600 font-semibold uppercase tracking-wider px-8 mb-4">
             Menu
           </h1>
-          <ul className="mt-2 mb-8">
+          <ul>
             {menuLinks.map((item: NavLink) => (
-              <li
-                key={item.label}
-                className="flex items-center space-x-3 hover:bg-green-700 p-2 rounded-r-full group">
-                <item.symbol className="text-black group-hover:text-white w-5 h-5 ml-6" />
+              <li key={item.label}>
                 <a
                   href={item.href}
-                  className="text-gray-700 text-lg group-hover:text-white">
-                  {item.label}
+                  onClick={() => setSelectedMenu(item.label)}
+                  className={`flex items-center px-8 py-3 rounded-lg rounded-r-full transition-colors duration-200 group ${
+                    isActive(item.href)
+                      ? 'bg-green-100 text-green-600 font-semibold'
+                      : 'text-gray-700 hover:bg-green-50 hover:text-green-600'
+                  }`}>
+                  <item.symbol
+                    className={`w-5 h-5 mr-3 ${
+                      isActive(item.href)
+                        ? 'text-green-600'
+                        : 'text-gray-500 group-hover:text-green-600'
+                    }`}
+                  />
+                  <span className="text-md">{item.label}</span>
                 </a>
               </li>
             ))}
           </ul>
         </nav>
 
-        <hr className="text-gray-400" />
+        <div className="border-t border-gray-100 my-4" />
 
         {/* Account */}
-        <nav className="mt-8">
-          <h1 className="text-xl font-medium font-sans font-stretch-110% ml-5">
+        <nav className="py-6">
+          <h1 className="text-md text-gray-600 font-semibold uppercase tracking-wider px-8 mb-4">
             Account
           </h1>
-          <ul className="mt-2 mb-4">
+          <ul className="space-y-1">
             {accountLinks.map((item: NavLink) => (
-              <li
-                key={item.label}
-                className="flex items-center space-x-3 hover:bg-amber-700 p-2 rounded-r-full group">
-                <item.symbol className="text-black group-hover:text-white w-5 h-5 ml-6" />
+              <li key={item.label}>
                 <a
                   href={item.href}
-                  className="text-gray-700 text-lg group-hover:text-white">
-                  {item.label}
+                  className={`flex items-center px-8 py-3 rounded-lg rounded-r-full transition-colors duration-200 group ${
+                    isActive(item.href)
+                      ? 'bg-violet-100 text-violet-600 font-semibold'
+                      : 'text-gray-700 hover:bg-violet-50 hover:text-violet-600'
+                  }`}>
+                  <item.symbol
+                    className={`w-5 h-5 mr-3 ${
+                      isActive(item.href)
+                        ? 'text-violet-600'
+                        : 'text-gray-500 group-hover:text-violet-600'
+                    }`}
+                  />
+                  <span className="text-md">{item.label}</span>
                 </a>
               </li>
             ))}

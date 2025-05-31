@@ -2,12 +2,13 @@ const express = require('express');
 import mongoose from 'mongoose';
 import { cattleRouter } from './routes/api/cattleRoutes';
 import { sensorDataRouter } from './routes/api/sensorDataRoutes';
-import authRouter from "./routes/api/authRoutes";
+import authRouter from './routes/api/authRoutes';
 import { mqttClient } from './services/mqttClient';
 const cors = require('cors');
 require('dotenv').config();
 import verifyJWT from './middlewear/verifyJWT';
 import { geoFenceRouter } from './routes/api/geoFenceRoutes';
+import { mapRouter } from './routes/api/mapRoutes';
 const cookieParser = require('cookie-parser');
 const PORT = process.env.PORT || 5000;
 const DB_CONNECTION = process.env.DB_CONNECTION || '';
@@ -41,10 +42,10 @@ app.get('/', (req: any, res: any) => {
 app.use(authRouter);
 // app.use(verifyJWT); // Apply JWT verification middleware to all routes below this line
 app.use('/geo-fence', geoFenceRouter);
+app.use('/map', mapRouter);
 app.use('/api/cattle', cattleRouter);
 app.use('/api/sensor', sensorDataRouter);
 app.use('/api/auth', authRouter); // Mount auth routes under /api/auth
-
 
 mongoose
   .connect(DB_CONNECTION)
@@ -67,4 +68,3 @@ mqttClient.subscribe('zone/1/+/data');
 //mqttClient.publish('iot/cattle', JSON.stringify(jsonObject));
 // mqttClient.subscribe('iot/cattle');
 //mqttClient.subscribe('iot/cattle');
-

@@ -26,6 +26,7 @@ const geoFenceSchema = new mongoose.Schema({
   zoneName: {
     type: String,
     required: true,
+    unique: true,
   },
 });
 

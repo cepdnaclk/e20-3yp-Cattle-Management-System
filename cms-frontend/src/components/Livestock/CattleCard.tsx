@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { FieldValue, useForm, FieldValues } from 'react-hook-form';
-import { CattleData } from './Interface';
 import dayjs from 'dayjs';
+import { CattleData } from '../Interface';
 
 interface CattleCardProps {
   cattleData: CattleData | null;

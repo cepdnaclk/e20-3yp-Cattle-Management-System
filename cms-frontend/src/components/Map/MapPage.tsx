@@ -1,14 +1,13 @@
 import { useState } from 'react';
+import NavSub from '../NavSub';
 import LiveLocation from './LiveLocation';
-import NavSub from './NavSub';
-import GeoFence from './GeoFence/AddGeoFence';
 
 const MapPage = () => {
-  const mapOptions = ['live location', 'geo fence'];
+  const mapOptions = ['live location', 'settings'];
   const [selectedOption, setSelectedOption] = useState('live location');
 
   return (
-    <div className="mt-12 overflow-x-auto px-5">
+    <div className="mt-10 overflow-x-auto px-5">
       <div className="flex items-center justify-between mb">
         {/* Navigation to display the different map options */}
         <NavSub
@@ -19,7 +18,7 @@ const MapPage = () => {
       </div>
       <hr className="text-gray-300 w-full mb-8" />
       {selectedOption === 'live location' && <LiveLocation />}
-      {selectedOption === 'geo fence' && <GeoFence />}
+      {/* {selectedOption === 'settings' && } */}
     </div>
   );
 };

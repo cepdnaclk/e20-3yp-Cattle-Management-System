@@ -30,22 +30,24 @@ const Login = () => {
       accessToken: "",
       firstName: "",
       lastName: "",
+      address: "",
     });
   };
 
   const onSubmit: SubmitHandler<FormFields> = async (data) => {
     try {
-      const respone = await login(data);
-      const accessToken = respone.data.accessToken;
+      const response = await login(data);
+      const accessToken = response.data.accessToken;
       console.log(accessToken);
       setAuth({
         email: data.email,
         password: data.password,
-        accessToken: accessToken,
-        firstName: "",
-        lastName: "",
+        accessToken: response.data.accessToken,
+        firstName: response.data.firstName,
+        lastName: response.data.lastName,
+        address: response.data.address,
       });
-      console.log("Login successful", respone.data.accessToken);
+      console.log("Login successful", response.data.accessToken);
       navigate("/dashboard");
     } catch (error) {
       console.error("Error during signup:", error);
@@ -87,8 +89,13 @@ const Login = () => {
           </p>
           <div className="mt-8">
             <div>
-              <label className="text-lg font-medium">Email</label>
+              <label htmlFor="email" className="text-lg font-medium">
+                Email
+              </label>
               <input
+                id="email"
+                className="w-full border-2 border-gray-100 bg-transparent rounded-lg p-3 mt-1"
+                placeholder="Enter your email"
                 {...register("email", {
                   required: "Email is required",
                   pattern: {
@@ -96,9 +103,6 @@ const Login = () => {
                     message: "Invalid email address",
                   },
                 })}
-                type="email"
-                className="w-full border-2 border-gray-100 bg-transparent rounded-lg p-3 mt-1"
-                placeholder="Enter your email"
               />
               {errors.email && (
                 <p className="text-red-500 text-sm mt-1 ml-1">
@@ -107,14 +111,17 @@ const Login = () => {
               )}
             </div>
             <div className="mt-3">
-              <label className="text-lg font-medium">Password</label>
+              <label htmlFor="password" className="text-lg font-medium">
+                Password
+              </label>
               <input
-                {...register("password", {
-                  required: "Password is required",
-                })}
+                id="password"
                 className="w-full border-2 border-gray-100 bg-transparent rounded-lg p-3 mt-1"
                 placeholder="Enter your password"
                 type="password"
+                {...register("password", {
+                  required: "Password is required",
+                })}
               />
               {errors.password && (
                 <p className="text-red-500 text-sm mt-1 ml-1">

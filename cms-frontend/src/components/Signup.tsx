@@ -53,8 +53,13 @@ const Signup = () => {
           <h1 className="text-5xl font-semibold">Sign up to CMS now</h1>
           <div className="mt-8">
             <div className="mt-3">
-              <label className="text-lg font-medium">First name</label>
+              <label htmlFor="firstName" className="text-lg font-medium">
+                First name
+              </label>
               <input
+                id="firstName"
+                className="w-full border-2 border-gray-100 bg-transparent rounded-lg p-3 mt-1"
+                placeholder="Enter your first name"
                 {...register("firstName", {
                   required: "First name is required",
                   minLength: {
@@ -62,8 +67,6 @@ const Signup = () => {
                     message: "First name must be at least 2 characters",
                   },
                 })}
-                className="w-full border-2 border-gray-100 bg-transparent rounded-lg p-3 mt-1"
-                placeholder="Enter your first name"
               />
               {errors.firstName && (
                 <p className="text-red-500 text-sm mt-1 ml-1">
@@ -72,8 +75,13 @@ const Signup = () => {
               )}
             </div>
             <div className="mt-3">
-              <label className="text-lg font-medium">Last name</label>
+              <label htmlFor="lastName" className="text-lg font-medium">
+                Last name
+              </label>
               <input
+                id="lastName"
+                className="w-full border-2 border-gray-100 bg-transparent rounded-lg p-3 mt-1"
+                placeholder="Enter your last name"
                 {...register("lastName", {
                   required: "Last name is required",
                   minLength: {
@@ -81,8 +89,6 @@ const Signup = () => {
                     message: "Last name must be at least 2 characters",
                   },
                 })}
-                className="w-full border-2 border-gray-100 bg-transparent rounded-lg p-3 mt-1"
-                placeholder="Enter your last name"
               />
               {errors.lastName && (
                 <p className="text-red-500 text-sm mt-1 ml-1">
@@ -91,8 +97,13 @@ const Signup = () => {
               )}
             </div>
             <div className="mt-3">
-              <label className="text-lg font-medium">Email</label>
+              <label htmlFor="email" className="text-lg font-medium">
+                Email
+              </label>
               <input
+                id="email"
+                className="w-full border-2 border-gray-100 bg-transparent rounded-lg p-3 mt-1"
+                placeholder="Enter your email"
                 {...register("email", {
                   required: "Email is required",
                   pattern: {
@@ -100,8 +111,6 @@ const Signup = () => {
                     message: "Invalid email address",
                   },
                 })}
-                className="w-full border-2 border-gray-100 bg-transparent rounded-lg p-3 mt-1"
-                placeholder="Enter your email"
               />
               {errors.email && (
                 <p className="text-red-500 text-sm mt-1 ml-1">
@@ -110,13 +119,16 @@ const Signup = () => {
               )}
             </div>
             <div className="mt-3">
-              <label className="text-lg font-medium">Address</label>
+              <label htmlFor="address" className="text-lg font-medium">
+                Address
+              </label>
               <input
+                id="address"
+                className="w-full border-2 border-gray-100 bg-transparent rounded-lg p-3 mt-1"
+                placeholder="Enter your address"
                 {...register("address", {
                   required: "Address is required",
                 })}
-                className="w-full border-2 border-gray-100 bg-transparent rounded-lg p-3 mt-1"
-                placeholder="Enter your address"
               />
               {errors.address && (
                 <p className="text-red-500 text-sm mt-1 ml-1">
@@ -125,8 +137,14 @@ const Signup = () => {
               )}
             </div>
             <div className="mt-3">
-              <label className="text-lg font-medium">Password</label>
+              <label htmlFor="password" className="text-lg font-medium">
+                Password
+              </label>
               <input
+                id="password"
+                className="w-full border-2 border-gray-100 bg-transparent rounded-lg p-3 mt-1"
+                placeholder="Enter your password"
+                type="password"
                 {...register("password", {
                   required: "Password is required",
                   minLength: {
@@ -134,9 +152,6 @@ const Signup = () => {
                     message: "Password must be at least 8 characters",
                   },
                 })}
-                className="w-full border-2 border-gray-100 bg-transparent rounded-lg p-3 mt-1"
-                placeholder="Enter your password"
-                type="password"
               />
               {errors.password && (
                 <p className="text-red-500 text-sm mt-1 ml-1">

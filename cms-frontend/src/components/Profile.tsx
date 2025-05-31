@@ -250,11 +250,15 @@ const Profile = () => {
                     <FaUser className="w-6 h-6 text-green-700" />
                   </div>
                   <div className="flex-grow">
-                    <label className="block text-sm font-medium text-gray-700">
+                    <label
+                      htmlFor="firstName"
+                      className="block text-sm font-medium text-gray-700"
+                    >
                       First Name
                     </label>
                     {isEditing ? (
                       <input
+                        id="firstName"
                         {...registerDetails("firstName", {
                           required: "First name is required",
                         })}
@@ -279,11 +283,15 @@ const Profile = () => {
                     <FaUser className="w-6 h-6 text-green-700" />
                   </div>
                   <div className="flex-grow">
-                    <label className="block text-sm font-medium text-gray-700">
+                    <label
+                      htmlFor="lastName"
+                      className="block text-sm font-medium text-gray-700"
+                    >
                       Last Name
                     </label>
                     {isEditing ? (
                       <input
+                        id="lastName"
                         {...registerDetails("lastName", {
                           required: "Last name is required",
                         })}
@@ -308,17 +316,17 @@ const Profile = () => {
                     <FaEnvelope className="w-6 h-6 text-green-700" />
                   </div>
                   <div className="flex-grow">
-                    <label className="block text-sm font-medium text-gray-700">
+                    <label
+                      htmlFor="email"
+                      className="block text-sm font-medium text-gray-700"
+                    >
                       Email
                     </label>
                     {isEditing ? (
                       <input
+                        id="email"
                         {...registerDetails("email", {
                           required: "Email is required",
-                          pattern: {
-                            value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                            message: "Invalid email address",
-                          },
                         })}
                         type="email"
                         className="mt-1 block w-96 rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 focus:outline-none transition-colors"
@@ -339,11 +347,15 @@ const Profile = () => {
                     <FaMapMarkerAlt className="w-6 h-6 text-green-700" />
                   </div>
                   <div className="flex-grow">
-                    <label className="block text-sm font-medium text-gray-700">
+                    <label
+                      htmlFor="address"
+                      className="block text-sm font-medium text-gray-700"
+                    >
                       Address
                     </label>
                     {isEditing ? (
                       <input
+                        id="address"
                         {...registerDetails("address", {
                           required: "Address is required",
                         })}
@@ -393,10 +405,14 @@ const Profile = () => {
             >
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">
+                  <label
+                    htmlFor="currentPassword"
+                    className="block text-sm font-medium text-gray-700"
+                  >
                     Current Password
                   </label>
                   <input
+                    id="currentPassword"
                     {...registerPassword("currentPassword", {
                       required: "Current password is required",
                     })}
@@ -411,16 +427,16 @@ const Profile = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">
+                  <label
+                    htmlFor="newPassword"
+                    className="block text-sm font-medium text-gray-700"
+                  >
                     New Password
                   </label>
                   <input
+                    id="newPassword"
                     {...registerPassword("newPassword", {
                       required: "New password is required",
-                      minLength: {
-                        value: 8,
-                        message: "Password must be at least 8 characters",
-                      },
                     })}
                     type="password"
                     className="mt-1 block w-96 rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 focus:outline-none transition-colors"
@@ -433,10 +449,14 @@ const Profile = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">
+                  <label
+                    htmlFor="confirmPassword"
+                    className="block text-sm font-medium text-gray-700"
+                  >
                     Confirm New Password
                   </label>
                   <input
+                    id="confirmPassword"
                     {...registerPassword("confirmPassword", {
                       required: "Please confirm your new password",
                     })}

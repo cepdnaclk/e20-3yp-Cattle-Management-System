@@ -29,10 +29,7 @@ bool dataReceived = false;
 
 // Receiver Zone Id
 const char *zoneId = "1";
-
-// Allocated Time
-int totalCattle = 100;
-uint16_t allocatedTime = 36;
+char expectedConfigTopic[64];
 
 // Broadcast Time
 struct TimePacket
@@ -42,12 +39,26 @@ struct TimePacket
 };
 
 TimePacket packet;
-#define TIMEINTERVAL 3600
 bool broadcast = false;
 uint8_t sync_retries = 0;
+int retries;
 bool allowRequest = false;
-const size_t sync_status_size = (totalCattle + 7) / 8;
-uint8_t *sync_status = (uint8_t *)calloc(sync_status_size, sizeof(uint8_t));
+
+// Configuration Settings
+
+struct DeviceConfig
+{
+    int timeInterval;
+    int totalCollars;
+    uint16_t allocatedTime;
+};
+
+DeviceConfig config = {180, 5, 36};
+
+bool configReceived = false;
+size_t sync_status_size;
+uint8_t *sync_status;
+uint8_t *ack_status;
 
 #define CS 15      // Chip select
 #define RESET 14   // Reset
@@ -93,6 +104,10 @@ void handleSave(void);
 void handleRoot(void);
 void broadcastTime(void);
 void reqNext(void);
+void getStationConfig(void);
+void mqttCallback(char *, byte *, unsigned int);
+void handleConfig(const char *);
+void waitForConfig(void);
 
 // Setup
 void setup()
@@ -133,7 +148,17 @@ void setup()
     }
 
     // Connecting to AWS
-    // connectAWS();
+    connectAWS();
+
+    // Subcribe to configuration settings
+    snprintf(expectedConfigTopic, sizeof(expectedConfigTopic), "station/%c/config", *zoneId);
+    getStationConfig();
+    waitForConfig();
+
+    // Setup using the received config
+    sync_status_size = (config.totalCollars + 7) / 8;
+    sync_status = (uint8_t *)calloc(sync_status_size, sizeof(uint8_t));
+    ack_status = (uint8_t *)calloc(sync_status_size, sizeof(uint8_t));
 
     Serial.println("Initializing LoRa");
     LoRa.setPins(15, 14, 4);
@@ -148,12 +173,12 @@ void setup()
     Serial.println("LoRa Initialized Successfully");
 
     // Attach Ticker to Broadcast Time hourly
-    hourlyTicker.attach(TIMEINTERVAL, broadcastTime);
+    hourlyTicker.attach(config.timeInterval, broadcastTime);
     Serial.println("Attached Hourly Ticker");
 
     // Attach Ticker to update retry and request logic
     Serial.println("Attached RequestTime Ticker");
-    reqTicker.attach((allocatedTime / REQ_RETRIES), reqNext);
+    reqTicker.attach((config.allocatedTime / REQ_RETRIES), reqNext);
 }
 
 // Broadcast the time
@@ -178,15 +203,34 @@ void broadcastTime()
     packet.millis = milliseconds;
     broadcast = true;
     sync_retries = 0;
+    reqDeviceId = 0;
+    prevDeviceId = 0;
+
+    if (sync_status != NULL)
+    {
+        free(sync_status);
+        sync_status = (uint8_t *)calloc(sync_status_size, sizeof(uint8_t));
+    }
+
+    if (ack_status != NULL)
+    {
+        free(ack_status);
+        ack_status = (uint8_t *)calloc(sync_status_size, sizeof(uint8_t));
+    }
 }
 
 void reqNext()
 {
-    static int retries;
     Serial.printf("Retry: %d\n", retries);
+    if (reqDeviceId == config.totalCollars)
+    {
+        return;
+    }
+
     if (retries == 0)
     {
         reqDeviceId++;
+        reqDeviceId %= config.totalCollars;
         dataReceived = false;
         Serial.printf("\nUpdating device Id: %d\n", (int)reqDeviceId);
     }
@@ -354,6 +398,7 @@ void connectAWS()
 
     mqttClient.setServer(awsEndpoint, 8883);
     mqttClient.setKeepAlive(60);
+    mqttClient.setCallback(mqttCallback);
 
     while (!mqttClient.connected())
     {
@@ -390,6 +435,79 @@ void publishAWS(const char *id, const char *payload)
     };
 }
 
+void mqttCallback(char *topic, byte *payload, unsigned int length)
+{
+    Serial.print("Message received on topic: ");
+    Serial.println(topic);
+
+    String message;
+    for (unsigned int i = 0; i < length; i++)
+    {
+        message += (char)payload[i];
+    }
+
+    if (strcmp(topic, expectedConfigTopic) == 0)
+    {
+        handleConfig(message.c_str());
+        configReceived = true;
+    }
+}
+
+void getStationConfig()
+{
+    if (mqttClient.subscribe(expectedConfigTopic))
+    {
+        Serial.print("Subscribed to topic: ");
+        Serial.println(expectedConfigTopic);
+    }
+    else
+    {
+        Serial.println("Failed to subscribe to station config");
+    }
+}
+
+void waitForConfig()
+{
+    configReceived = false; // Reset the flag
+
+    unsigned long start = millis();
+    unsigned long timeout = 10000; // 10 seconds
+
+    while (!configReceived && ((millis() - start) < timeout))
+    {
+        mqttClient.loop();
+        delay(100);
+    }
+
+    if (!configReceived)
+    {
+        char errorTopic[64];
+        char payload[64];
+
+        snprintf(errorTopic,sizeof(errorTopic),"station/%c/error",*zoneId);
+        snprintf(payload,sizeof(payload),"Error in retreving config file at receiver station (id: %c)",*zoneId);
+        mqttClient.publish(errorTopic,payload);
+    }
+    
+}
+
+void handleConfig(const char *message)
+{
+    JsonDocument doc;
+    deserializeJson(doc, message);
+
+    config.timeInterval = doc["timeInterval"];
+    config.allocatedTime = doc["allocatedTime"];
+    config.totalCollars = doc["totalCollars"];
+
+    Serial.print("time Interval: ");
+    Serial.println(config.timeInterval);
+    Serial.print("allocated Time: ");
+    Serial.println(config.allocatedTime);
+    Serial.print("total Collars: ");
+    Serial.println(config.totalCollars);
+}
+
 void loop()
 {
     switch (current_state)
@@ -408,7 +526,7 @@ void loop()
             LoRa.beginPacket();
             LoRa.write((uint8_t *)&mode, 1); // Broadcast header
             LoRa.write((uint8_t *)&packet, sizeof(packet));
-            LoRa.write((uint8_t *)&allocatedTime, sizeof(allocatedTime));
+            LoRa.write((uint8_t *)&config.allocatedTime, sizeof(config.allocatedTime));
             LoRa.write(&sync_retries, 1);
             LoRa.write(sync_status, sync_status_size); // Broadcasting sync status mask
             if (LoRa.endPacket())
@@ -461,6 +579,7 @@ void loop()
         }
 
         // Update state to RX_STATE
+        broadcast = false;
         current_state = REQ_STATE;
         reqNext();
         break;
@@ -469,11 +588,27 @@ void loop()
     case REQ_STATE:
     {
         uint8_t mode = 0xB0;
-        if (allowRequest && !dataReceived)
+
+        if (!mqttClient.connected())
+        {
+            connectAWS();
+        }
+        mqttClient.loop();
+
+        if (broadcast)
+        {
+            current_state = BROADCAST_STATE;
+            allowRequest = false;
+            break;
+        }
+
+        if (allowRequest)
         {
             LoRa.beginPacket();
             LoRa.write((uint8_t *)&mode, 1);
             LoRa.write((uint8_t *)&reqDeviceId, 2);
+            LoRa.write((uint8_t *)&retries, 1);
+            LoRa.write(ack_status, sync_status_size); // Broadcasting ack status mask
             if (LoRa.endPacket())
             {
                 Serial.printf("Requesting from device id: %d mode: %X\n", (int)reqDeviceId, (int)mode);
@@ -487,8 +622,8 @@ void loop()
             allowRequest = false;
             current_state = RX_STATE;
         }
+        break;
     }
-    break;
 
     case RX_STATE:
 
@@ -535,15 +670,15 @@ void loop()
             Serial.print("' with RSSI '");
             Serial.println(LoRa.packetRssi());
 
-            if ((int)id == reqDeviceId)
+            if ((atoi(id) == reqDeviceId) && !dataReceived)
             {
                 // Publish to AWS IoT
                 publishAWS(id, msg);
+                uint8_t byteMask = reqDeviceId / 8;
+                uint8_t bitMask = reqDeviceId % 8;
+                ack_status[byteMask] |= (1 << bitMask);
+                Serial.printf("Device Id: %d is Recorded\n", atoi(id));
                 dataReceived = true;
-
-                // Update STATE
-                Serial.println("Updating state to REQ_STATE....");
-                current_state = REQ_STATE;
                 break;
             }
         }

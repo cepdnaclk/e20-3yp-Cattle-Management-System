@@ -10,6 +10,8 @@
 #include <ArduinoJson.h>
 #include <Ticker.h>
 
+#define DEVICEID 1000
+
 // Initialize a state machine
 enum STATES
 {
@@ -28,8 +30,9 @@ bool dataReceived = false;
 #define REQ_RETRIES 3
 
 // Receiver Zone Id
-const char *zoneId = "1";
-char expectedConfigTopic[64];
+char zoneId[4];
+char expectedZoneIdTopic[64];
+bool zoneIdReceived = false;
 
 // Broadcast Time
 struct TimePacket
@@ -45,6 +48,7 @@ int retries;
 bool allowRequest = false;
 
 // Configuration Settings
+char expectedConfigTopic[64];
 
 struct DeviceConfig
 {
@@ -104,10 +108,13 @@ void handleSave(void);
 void handleRoot(void);
 void broadcastTime(void);
 void reqNext(void);
-void getStationConfig(void);
 void mqttCallback(char *, byte *, unsigned int);
+void getStationConfig(void);
 void handleConfig(const char *);
 void waitForConfig(void);
+void getZoneId(void);
+void handleZoneId(const char *);
+void waitForZoneId(void);
 
 // Setup
 void setup()
@@ -150,8 +157,13 @@ void setup()
     // Connecting to AWS
     connectAWS();
 
+    // Find out zone Id for current device ID
+    snprintf(expectedZoneIdTopic, sizeof(expectedZoneIdTopic), "device/%d/zone", DEVICEID);
+    getZoneId();
+    waitForZoneId();
+
     // Subcribe to configuration settings
-    snprintf(expectedConfigTopic, sizeof(expectedConfigTopic), "station/%c/config", *zoneId);
+    snprintf(expectedConfigTopic, sizeof(expectedConfigTopic), "station/%s/config", zoneId);
     getStationConfig();
     waitForConfig();
 
@@ -450,6 +462,73 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
     {
         handleConfig(message.c_str());
         configReceived = true;
+    } else if (strcmp(topic, expectedZoneIdTopic) == 0)
+    {
+        handleZoneId(message.c_str());
+        zoneIdReceived = true;
+    }
+}
+
+void getZoneId()
+{
+    if (mqttClient.subscribe(expectedZoneIdTopic))
+    {
+        Serial.print("Subscribed to topic: ");
+        Serial.println(expectedZoneIdTopic);
+    }
+    else
+    {
+        Serial.println("Failed to subscribe to station config");
+    }
+}
+
+void waitForZoneId()
+{
+    zoneIdReceived = false; // Reset the flag
+
+    unsigned long start = millis();
+    unsigned long timeout = 10000; // 10 seconds
+
+    while (!zoneIdReceived && ((millis() - start) < timeout))
+    {
+        mqttClient.loop();
+        delay(100);
+    }
+
+    if (!zoneIdReceived)
+    {
+        char errorTopic[64];
+        char payload[64];
+
+        snprintf(errorTopic, sizeof(errorTopic), "device/%d/error", DEVICEID);
+        snprintf(payload, sizeof(payload), "Zone Id not found for device id: %d", DEVICEID);
+        mqttClient.publish(errorTopic, payload);
+    }
+}
+
+void handleZoneId(const char *message)
+{
+    JsonDocument doc;
+    DeserializationError error = deserializeJson(doc, message);
+
+    if (error)
+    {
+        Serial.println("Failed to parse JSON");
+        return;
+    }
+
+    const char *id = doc["zoneId"];
+    if (id != nullptr)
+    {
+        strncpy(zoneId, id, sizeof(zoneId) - 1);
+        zoneId[sizeof(zoneId) - 1] = '\0'; // Ensure null-termination
+
+        Serial.print("Zone Id: ");
+        Serial.println(zoneId);
+    }
+    else
+    {
+        Serial.println("zoneId field missing or null");
     }
 }
 
@@ -484,11 +563,10 @@ void waitForConfig()
         char errorTopic[64];
         char payload[64];
 
-        snprintf(errorTopic,sizeof(errorTopic),"station/%c/error",*zoneId);
-        snprintf(payload,sizeof(payload),"Error in retreving config file at receiver station (id: %c)",*zoneId);
-        mqttClient.publish(errorTopic,payload);
+        snprintf(errorTopic, sizeof(errorTopic), "station/%c/error", *zoneId);
+        snprintf(payload, sizeof(payload), "Error in retreving config file at receiver station (id: %c)", *zoneId);
+        mqttClient.publish(errorTopic, payload);
     }
-    
 }
 
 void handleConfig(const char *message)

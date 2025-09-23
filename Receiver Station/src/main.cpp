@@ -52,12 +52,13 @@ char expectedConfigTopic[64];
 
 struct DeviceConfig
 {
-    int timeInterval;
+    uint16_t timeInterval;
     int totalCollars;
     uint16_t allocatedTime;
+    uint8_t syncMaxRetry;
 };
 
-DeviceConfig config = {180, 5, 36};
+DeviceConfig config = {180, 5, 36, 5}; // Default values
 
 bool configReceived = false;
 size_t sync_status_size;
@@ -178,8 +179,7 @@ void setup()
     if (!LoRa.begin(FREQ))
     {
         Serial.println("Starting LoRa failed!");
-        while (1)
-            ;
+        while (1);
     }
 
     Serial.println("LoRa Initialized Successfully");
@@ -241,13 +241,20 @@ void reqNext()
 
     if (retries == 0)
     {
-        while (!(sync_status[reqDeviceId / 8] & (1 << (reqDeviceId % 8))))
+        if (reqDeviceId > config.totalCollars)
+        {
+            return;
+        }
+        
+        do
         {
             reqDeviceId++;
-            if (reqDeviceId == config.totalCollars)
-                break;
-        }
-
+            if (reqDeviceId == config.totalCollars + 1){
+                Serial.println("All devices updated in this cycle.");
+                return;
+            }
+        } while (!(sync_status[reqDeviceId / 8] & (1 << (reqDeviceId % 8))));
+        
         dataReceived = false;
         Serial.printf("\nUpdating device Id: %d\n", (int)reqDeviceId);
     }
@@ -583,6 +590,7 @@ void handleConfig(const char *message)
     config.timeInterval = doc["timeInterval"];
     config.allocatedTime = doc["allocatedTime"];
     config.totalCollars = doc["totalCollars"];
+    config.syncMaxRetry = doc["syncMaxRetry"];
 
     Serial.print("time Interval: ");
     Serial.println(config.timeInterval);
@@ -590,6 +598,8 @@ void handleConfig(const char *message)
     Serial.println(config.allocatedTime);
     Serial.print("total Collars: ");
     Serial.println(config.totalCollars);
+    Serial.print("sync Max Retry: ");
+    Serial.println(config.syncMaxRetry);
 }
 
 void loop()
@@ -611,6 +621,7 @@ void loop()
             LoRa.write((uint8_t *)&mode, 1); // Broadcast header
             LoRa.write((uint8_t *)&packet, sizeof(packet));
             LoRa.write((uint8_t *)&config.allocatedTime, sizeof(config.allocatedTime));
+            LoRa.write((uint8_t *)&config.syncMaxRetry, sizeof(config.syncMaxRetry));
             LoRa.write(&sync_retries, 1);
             LoRa.write(sync_status, sync_status_size); // Broadcasting sync status mask
             if (LoRa.endPacket())

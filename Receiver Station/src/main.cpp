@@ -614,13 +614,14 @@ void loop()
     case BROADCAST_STATE:
     {
         uint8_t mode = 0xA0;
-        if (broadcast && sync_retries < 5)
+        if (broadcast && sync_retries < config.syncMaxRetry)
         {
             Serial.printf("Retry #%d\n", sync_retries);
             LoRa.beginPacket();
             LoRa.write((uint8_t *)&mode, 1); // Broadcast header
             LoRa.write((uint8_t *)&packet, sizeof(packet));
             LoRa.write((uint8_t *)&config.allocatedTime, sizeof(config.allocatedTime));
+            LoRa.write((uint8_t *)&config.timeInterval, sizeof(config.timeInterval));
             LoRa.write((uint8_t *)&config.syncMaxRetry, sizeof(config.syncMaxRetry));
             LoRa.write(&sync_retries, 1);
             LoRa.write(sync_status, sync_status_size); // Broadcasting sync status mask

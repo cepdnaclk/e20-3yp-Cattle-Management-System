@@ -241,8 +241,13 @@ void reqNext()
 
     if (retries == 0)
     {
-        reqDeviceId++;
-        reqDeviceId %= config.totalCollars;
+        while (!(sync_status[reqDeviceId / 8] & (1 << (reqDeviceId % 8))))
+        {
+            reqDeviceId++;
+            if (reqDeviceId == config.totalCollars)
+                break;
+        }
+
         dataReceived = false;
         Serial.printf("\nUpdating device Id: %d\n", (int)reqDeviceId);
     }
@@ -316,8 +321,8 @@ void connectToWiFi()
 
     while (WiFi.status() != WL_CONNECTED)
     {
-        if (retries++ >= 30)
-        { // 15 seconds total (30 x 500ms)
+        if (retries++ >= 60)
+        { // 30 seconds total (60 x 500ms)
             Serial.println("Failed to connect - starting AP");
 
             Serial.print("SSID: ");
@@ -462,7 +467,8 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
     {
         handleConfig(message.c_str());
         configReceived = true;
-    } else if (strcmp(topic, expectedZoneIdTopic) == 0)
+    }
+    else if (strcmp(topic, expectedZoneIdTopic) == 0)
     {
         handleZoneId(message.c_str());
         zoneIdReceived = true;
